@@ -1,0 +1,40 @@
+version: '3.8'
+services:
+  bitcoind:
+    container_name: bitcoind
+    user: 1000:1000
+    image: lncm/bitcoind:v26.0
+    restart: on-failure
+    volumes:
+      - ./docker/bitcoin.conf:/data/.bitcoin/bitcoin.conf
+      - bitcoin_data:/data/.bitcoin
+    ports:
+      - "18443:18443"  # Bitcoin RPC port
+      - "18444:18444"  # Bitcoin P2P port
+    networks:
+      - bitcoin_network
+
+  ord:
+    container_name: ord
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+    command:  ["--regtest", "--data-dir", "/index-data", "--rpc-url", "bitcoind:18443", "server", "--http-port", "8080"]
+    volumes:
+      - index_data:/index-data
+    environment:
+      - ORD_BITCOIN_RPC_USER=icp
+      - ORD_BITCOIN_RPC_PASS=test
+    ports:
+      - "8080:8080"
+    depends_on:
+      - bitcoind
+    networks:
+      - bitcoin_network
+
+volumes:
+  bitcoin_data:
+  index_data:
+
+networks:
+  bitcoin_network:

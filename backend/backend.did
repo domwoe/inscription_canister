@@ -1,0 +1,6 @@
+type BitcoinNetwork = variant { mainnet; regtest; testnet };
+service : (BitcoinNetwork, text) -> {
+  get_balance : (text) -> (nat64);
+  get_p2pkh_address : () -> (text);
+  inscribe : (text, text, opt text, opt nat64) -> (text, text);
+}
