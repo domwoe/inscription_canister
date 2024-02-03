@@ -1,12 +1,14 @@
 use bip32::{Seed, XPrv};
 use bitcoin::{
-    key::{UntweakedKeypair, Secp256k1},
-    secp256k1::Message,
-    XOnlyPublicKey
+    key::{Secp256k1, UntweakedKeypair}, secp256k1::Message
 };
 use candid::{CandidType, Deserialize, Principal};
 
 use serde::Serialize;
+
+use ic_crypto_extended_bip32::{
+    DerivationIndex, DerivationPath,
+};
 
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use ic_stable_structures::{DefaultMemoryImpl, StableCell};
@@ -166,8 +168,7 @@ async fn init_key() -> () {
 
 
 #[ic_cdk::update]
-fn schnorr_public_key(_arg: SchnorrPublicKey) -> SchnorrPublicKeyReply {
-
+fn schnorr_public_key(arg: SchnorrPublicKey) -> SchnorrPublicKeyReply {
 
     let secp256k1: Secp256k1<bitcoin::secp256k1::All> = Secp256k1::new();
 
@@ -179,13 +180,39 @@ fn schnorr_public_key(_arg: SchnorrPublicKey) -> SchnorrPublicKeyReply {
     
     let key_pair = UntweakedKeypair::from_seckey_slice(&secp256k1, &key_bytes).expect("Should generate key pair");
 
-    let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
+    // let (public_key, parity) = XOnlyPublicKey::from_keypair(&key_pair);
+    
+    let master_chain_code = [0u8; 32];
 
-    let chain_code: Vec<u8> = Vec::new();
+    let canister_id = match arg.canister_id {
+        Some(canister_id) => {
+            canister_id
+        }
+        None => {
+           ic_cdk::caller()
+        }
+    };
+
+    let public_key_sec1 = key_pair.public_key().serialize();
+    let mut path = vec![];
+    let derivation_index = DerivationIndex(canister_id.as_slice().to_vec());
+    path.push(derivation_index);
+
+    for index in arg.derivation_path {
+        path.push(DerivationIndex(index));
+    }
+    let derivation_path = DerivationPath::new(path);
+
+    let res = derivation_path
+        .key_derivation(
+            &public_key_sec1,
+            &master_chain_code,
+        )
+        .expect("Should derive key");
 
     SchnorrPublicKeyReply {
-        public_key: public_key.serialize().to_vec(),
-        chain_code,
+        public_key: res.derived_public_key,
+        chain_code: res.derived_chain_code,
     }
 
 }
@@ -200,11 +227,30 @@ fn sign_with_schnorr(arg: SignWithSchnorr) -> SignWithSchnorrReply {
     let seed = Seed::new(seed);
 
     let root_xprv = XPrv::new(&seed).unwrap();
-    let key_bytes = root_xprv.private_key().to_bytes();
-    
+    let private_key_bytes = root_xprv.private_key().to_bytes();
+
+    let master_chain_code = [0u8; 32];
+
+    let canister_id = ic_cdk::caller();
+
+    let mut path = vec![];
+    let derivation_index = DerivationIndex(canister_id.as_slice().to_vec());
+    path.push(derivation_index);
+
+    for index in arg.derivation_path {
+        path.push(DerivationIndex(index));
+    }
+    let derivation_path = DerivationPath::new(path);
+
+    let res = derivation_path
+        .private_key_derivation(
+            &private_key_bytes,
+            &master_chain_code,
+        )
+        .expect("Should derive key");
     
     let secp256k1: Secp256k1<bitcoin::secp256k1::All> = Secp256k1::new();
-    let key_pair = UntweakedKeypair::from_seckey_slice(&secp256k1, &key_bytes).expect("Should generate key pair");
+    let key_pair = UntweakedKeypair::from_seckey_slice(&secp256k1, &res.derived_private_key).expect("Should generate key pair");
 
     let sig = secp256k1.sign_schnorr_no_aux_rand(
         &Message::from_digest_slice(message.as_ref())
@@ -219,7 +265,7 @@ fn sign_with_schnorr(arg: SignWithSchnorr) -> SignWithSchnorrReply {
 }
 
 pub fn my_custom_random(_buf: &mut [u8]) -> Result<(), Error> {
-    Ok(())
+    ic_cdk::trap("Not implemented");
 }
 
 register_custom_getrandom!(my_custom_random);
