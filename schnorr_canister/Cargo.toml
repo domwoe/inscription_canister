@@ -12,9 +12,13 @@ crate-type = ["cdylib"]
 [dependencies]
 bip32 = { "version" = "0.5.1", features = ["k256"] }
 bitcoin = { version = "0.31.0", features = ["serde"] }
-candid = "0.10.1"
-ic-cdk = "0.12.0"
+# candid = "^0.10.3"
+# ic-cdk = "^0.10.0"
+candid = "0.9.10"
+ic-cdk = "0.11.0"
+ic-cdk-timers = "0.5.1"
+ic-crypto-extended-bip32 = { git = "https://github.com/dfinity/ic/", rev = "8b6c8d1b0f75b1c4d41a3e251a715bde59c4d19a" }
 ic-stable-structures = "0.6"
 getrandom = { version = "0.2.11", features = ["custom"] }
-# k256 = { "version" = "0.13.2", features = ["schnorr"] }
 serde = "1"
+serde_bytes = "0.11.14"

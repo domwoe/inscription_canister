@@ -10,8 +10,7 @@ candid-extractor target/wasm32-unknown-unknown/release/schnorr_canister.wasm > s
 #dfx canister create schnorr_canister
 dfx deploy schnorr_canister
 
-# Init the private key from randomness
-dfx canister call schnorr_canister init_key
+# Get the canister id
 schnorr_canister_id=$(dfx canister id schnorr_canister)
 
 # Build the backend canister

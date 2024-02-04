@@ -4,7 +4,7 @@ use bitcoin::{
     blockdata::{opcodes, script::Builder, witness::Witness},
     consensus::serialize,
     hashes::Hash,
-    key::{Secp256k1, UntweakedPublicKey},
+    key::{Secp256k1, PublicKey},
     script::PushBytesBuf,
     secp256k1::{schnorr, XOnlyPublicKey},
     sighash::{self, SighashCache, TapSighashType},
@@ -88,8 +88,8 @@ pub async fn inscribe(
 
     print("Fetching Schnorr public key...");
     let raw_public_key = schnorr_api::schnorr_public_key(key_name.clone(), vec![]).await;
-    let schnorr_public_key = UntweakedPublicKey::from_slice(&raw_public_key).unwrap();
-
+    // Convert the raw public key (sec1 encoded) to a XOnlyPublicKey (BIP 340 encoded)
+    let schnorr_public_key = PublicKey::from_slice(&raw_public_key).unwrap().into();
 
     let fee_rate = FeeRate::from_sat_per_vb(fee_rate).unwrap();
 
@@ -245,7 +245,7 @@ async fn build_inscription_transactions(
         &own_public_key,
         &own_address,
         unsigned_commit_tx,
-        key_name,
+        key_name.clone(),
         derivation_path,
         ecdsa_api::sign_with_ecdsa,
     )
@@ -295,7 +295,7 @@ async fn build_inscription_transactions(
 
     let msg = sighash.to_byte_array().to_vec();
 
-    let sig = schnorr_api::sign_with_schnorr(String::from("test_key_1"), vec![], msg).await;
+    let sig = schnorr_api::sign_with_schnorr(key_name.clone(), vec![], msg).await;
 
     let witness = sighasher
       .witness_mut(commit_input_index)
