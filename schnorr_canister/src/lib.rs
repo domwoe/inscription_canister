@@ -1,23 +1,29 @@
 use bip32::{Seed, XPrv};
 use bitcoin::{
-    key::{Secp256k1, UntweakedKeypair}, secp256k1::Message
+    key::{Secp256k1, UntweakedKeypair},
+    secp256k1::Message,
 };
-use candid::{CandidType, Deserialize, Principal};
+use candid::{CandidType, Decode, Deserialize, Encode, Principal};
 
 use serde::Serialize;
+use serde_bytes::ByteBuf;
 
-use ic_crypto_extended_bip32::{
-    DerivationIndex, DerivationPath,
-};
+use ic_crypto_extended_bip32::{DerivationIndex, DerivationPath};
 
-use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
-use ic_stable_structures::{DefaultMemoryImpl, StableCell};
+use ic_stable_structures::storable::Bound;
+use ic_stable_structures::{StableBTreeMap, StableCell, Storable};
+
+use std::borrow::Cow;
 use std::cell::RefCell;
+use std::time::Duration;
 
-use getrandom::{Error, register_custom_getrandom};
+use getrandom::{register_custom_getrandom, Error};
 
+mod memory;
+use memory::Memory;
 
-type Memory = VirtualMemory<DefaultMemoryImpl>;
+// type Memory = VirtualMemory<DefaultMemoryImpl>;
+const MAX_VALUE_SIZE: u32 = 100;
 
 #[derive(CandidType, Deserialize, Serialize, Debug)]
 struct SchnorrPublicKey {
@@ -39,158 +45,121 @@ struct SignWithSchnorr {
     pub key_id: SchnorrKeyId,
 }
 
-// enum SchnorrKeyIds {
-//     #[allow(unused)]
-//     TestKey1,
-// }
+enum SchnorrKeyIds {
+    #[allow(unused)]
+    TestKey1,
+}
 
-// impl SchnorrKeyIds {
-//     fn to_key_id(&self) -> SchnorrKeyId {
-//         SchnorrKeyId {
-//             name: match self {
-//                 Self::TestKey1 => "test_key_1",
-//             }
-//             .to_string(),
-//         }
-//     }
-// }
+impl SchnorrKeyIds {
+    fn to_key_id(&self) -> SchnorrKeyId {
+        SchnorrKeyId {
+            name: match self {
+                Self::TestKey1 => "test_key_1",
+            }
+            .to_string(),
+        }
+    }
+
+    fn variants() -> Vec<SchnorrKeyIds> {
+        vec![SchnorrKeyIds::TestKey1]
+    }
+}
 
 #[derive(CandidType, Deserialize, Debug)]
 struct SignWithSchnorrReply {
     pub signature: Vec<u8>,
 }
 
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct SchnorrKeyId {
-    pub name: String,
+    name: String,
+}
+impl Storable for SchnorrKeyId {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+struct HttpRequest {
+    pub method: String,
+    pub url: String,
+    pub headers: Vec<(String, String)>,
+    pub body: ByteBuf,
+    pub certificate_version: Option<u16>,
+}
+
+type HeaderField = (String, String);
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+struct HttpResponse {
+    pub status_code: u16,
+    pub headers: Vec<HeaderField>,
+    pub body: ByteBuf,
+}
+
+#[derive(Serialize, Deserialize)]
+struct State {
+    // The seeds for the keys are stored in a stable memory.
+    #[serde(skip, default = "init_stable_data")]
+    seeds: StableBTreeMap<SchnorrKeyId, [u8; 64], Memory>,
+
+    #[serde(skip, default = "init_sig_count")]
+    sig_count: StableCell<u128, Memory>,
 }
 
 thread_local! {
-    // The memory manager is used for simulating multiple memories. Given a `MemoryId` it can
-    // return a memory that can be used by stable structures.
-    static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
-        RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
-
-    static LOCK: RefCell<bool> = RefCell::new(false);
-
-    // Initialize a `StableCell` with `MemoryId(0)`.
-    static SEED: RefCell<StableCell<[u8; 64], Memory>> = RefCell::new(
-            StableCell::init(
-                MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(0))),
-                [0; 64]
-        ).unwrap()
-    );
+    static STATE: RefCell<State> = RefCell::new(State::default());
 }
 
-#[ic_cdk::update]
-async fn init_key() -> () {
-    SEED.with(|s| {
-        let seed = s.borrow().get().clone();
-        let is_initialized = seed != [0; 64];
-
-        if is_initialized {
-            ic_cdk::trap("Already initialized");
-        }
-    });
-
-    LOCK.with_borrow_mut(|l| {
-        if *l {
-            ic_cdk::trap("Already initializing");
-        }
-        *l = true;
-    });
-
-    let mut rand = match ic_cdk::api::management_canister::main::raw_rand().await {
-        Ok(rand) => {
-            LOCK.with_borrow_mut(|l| {
-                *l = false;
+#[ic_cdk::init]
+fn init() {
+    ic_cdk_timers::set_timer(Duration::ZERO, move || {
+        for key in SchnorrKeyIds::variants() {
+            ic_cdk::spawn(async move {
+                let seed = get_random_seed().await;
+                STATE.with(|s| {
+                    let seeds = &mut s.borrow_mut().seeds;
+                    seeds
+                        .get(&key.to_key_id())
+                        .or_else(|| seeds.insert(key.to_key_id(), seed));
+                });
             });
-            rand.0
         }
-        Err(err) => {
-            LOCK.with_borrow_mut(|l| {
-                *l = false;
-            });
-            ic_cdk::trap(&format!("Error: {:?}", err));
-        }
-    };
-
-    rand.extend(rand.clone());
-    let rand: [u8; 64] = rand.try_into().expect("Expected a Vec of length 64");
-
-    let seed = Seed::new(rand);
-
-    SEED.with(|s| {
-        s.borrow_mut().set(seed.as_bytes().to_owned()).unwrap();
     });
 }
-
-// #[ic_cdk::update]
-// fn schnorr_public_key(_arg: SchnorrPublicKey) -> SchnorrPublicKeyReply {
-//     let seed = SEED.with(|s| s.borrow().get().clone());
-//     let seed = Seed::new(seed);
-
-//     let root_xprv = XPrv::new(&seed).unwrap();
-//     let key_bytes = root_xprv.private_key().to_bytes();
-
-//     let signing_key = k256::schnorr::SigningKey::from_bytes(key_bytes.as_slice()).unwrap();
-//     let verifying_key  = signing_key.verifying_key();
-
-//     let chain_code = Vec::new();
-
-
-//     SchnorrPublicKeyReply {
-//         public_key: verifying_key.to_bytes().to_vec(),
-//         chain_code,
-//     }
-// }
-
-// #[ic_cdk::update]
-// fn sign_with_schnorr(arg: SignWithSchnorr) -> SignWithSchnorrReply {
-
-//     let message = arg.message;
-
-//     let seed = SEED.with(|s| s.borrow().get().clone());
-//     let seed = Seed::new(seed);
-
-//     let root_xprv = XPrv::new(&seed).unwrap();
-//     let key_bytes = root_xprv.private_key().to_bytes();
-
-//     let signing_key = k256::schnorr::SigningKey::from_bytes(key_bytes.as_slice()).unwrap();
-    
-//     let signature = signing_key.sign(message.as_slice());
-
-//     SignWithSchnorrReply {
-//         signature: signature.to_bytes().to_vec(),
-//     }
-// }
-
-
-
 #[ic_cdk::update]
 fn schnorr_public_key(arg: SchnorrPublicKey) -> SchnorrPublicKeyReply {
-
     let secp256k1: Secp256k1<bitcoin::secp256k1::All> = Secp256k1::new();
 
-    let seed = SEED.with(|s| s.borrow().get().clone());
-    let seed = Seed::new(seed);
-    
+    let seed = Seed::new(STATE.with(|s| {
+        s.borrow()
+            .seeds
+            .get(&arg.key_id)
+            .expect(format!("No key with name {:?}", &arg.key_id).as_str())
+            .clone()
+    }));
+
     let root_xprv = XPrv::new(&seed).unwrap();
     let key_bytes = root_xprv.private_key().to_bytes();
-    
-    let key_pair = UntweakedKeypair::from_seckey_slice(&secp256k1, &key_bytes).expect("Should generate key pair");
 
-    // let (public_key, parity) = XOnlyPublicKey::from_keypair(&key_pair);
-    
+    let key_pair = UntweakedKeypair::from_seckey_slice(&secp256k1, &key_bytes)
+        .expect("Should generate key pair");
+
     let master_chain_code = [0u8; 32];
 
     let canister_id = match arg.canister_id {
-        Some(canister_id) => {
-            canister_id
-        }
-        None => {
-           ic_cdk::caller()
-        }
+        Some(canister_id) => canister_id,
+        None => ic_cdk::caller(),
     };
 
     let public_key_sec1 = key_pair.public_key().serialize();
@@ -204,27 +173,32 @@ fn schnorr_public_key(arg: SchnorrPublicKey) -> SchnorrPublicKeyReply {
     let derivation_path = DerivationPath::new(path);
 
     let res = derivation_path
-        .key_derivation(
-            &public_key_sec1,
-            &master_chain_code,
-        )
+        .key_derivation(&public_key_sec1, &master_chain_code)
         .expect("Should derive key");
 
     SchnorrPublicKeyReply {
         public_key: res.derived_public_key,
         chain_code: res.derived_chain_code,
     }
-
 }
-
 
 #[ic_cdk::update]
 fn sign_with_schnorr(arg: SignWithSchnorr) -> SignWithSchnorrReply {
+    
 
     let message = arg.message;
 
-    let seed = SEED.with(|s| s.borrow().get().clone());
-    let seed = Seed::new(seed);
+    let seed = Seed::new(STATE.with(|s| {
+        s.borrow()
+            .seeds
+            .get(&arg.key_id)
+            .expect(format!("No key with name {:?}", &arg.key_id).as_str())
+            .clone()
+    }));
+
+    STATE.with(|s| {
+        let _ = s.borrow_mut().sig_count.set(s.borrow().sig_count.get() + 1);
+    });
 
     let root_xprv = XPrv::new(&seed).unwrap();
     let private_key_bytes = root_xprv.private_key().to_bytes();
@@ -243,25 +217,67 @@ fn sign_with_schnorr(arg: SignWithSchnorr) -> SignWithSchnorrReply {
     let derivation_path = DerivationPath::new(path);
 
     let res = derivation_path
-        .private_key_derivation(
-            &private_key_bytes,
-            &master_chain_code,
-        )
+        .private_key_derivation(&private_key_bytes, &master_chain_code)
         .expect("Should derive key");
-    
+
     let secp256k1: Secp256k1<bitcoin::secp256k1::All> = Secp256k1::new();
-    let key_pair = UntweakedKeypair::from_seckey_slice(&secp256k1, &res.derived_private_key).expect("Should generate key pair");
+    let key_pair = UntweakedKeypair::from_seckey_slice(&secp256k1, &res.derived_private_key)
+        .expect("Should generate key pair");
 
     let sig = secp256k1.sign_schnorr_no_aux_rand(
         &Message::from_digest_slice(message.as_ref())
-          .expect("should be cryptographically secure hash"),
+            .expect("should be cryptographically secure hash"),
         &key_pair,
-      );
+    );
 
     SignWithSchnorrReply {
         signature: sig.serialize().to_vec(),
     }
+}
 
+#[ic_cdk::query]
+fn http_request(_req: HttpRequest) -> HttpResponse {
+
+    let sig_count = STATE.with(|s| s.borrow().sig_count.get().clone());
+    let sig_count = format!("Signature count: {}", sig_count);
+
+    HttpResponse {
+        status_code: 200,
+        headers: vec![("content-type".to_string(), "text/plain charset=utf-8".to_string())],
+        body: ByteBuf::from(sig_count),
+    }
+}
+
+fn init_sig_count() -> StableCell<u128, Memory> {
+    StableCell::init(crate::memory::get_sig_count(), 0u128)
+        .expect("Could not initialize sig count memory")
+}
+
+fn init_stable_data() -> StableBTreeMap<SchnorrKeyId, [u8; 64], Memory> {
+    StableBTreeMap::init(crate::memory::get_seeds())
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            sig_count: init_sig_count(),
+            seeds: init_stable_data(),
+        }
+    }
+}
+
+async fn get_random_seed() -> [u8; 64] {
+    match ic_cdk::api::management_canister::main::raw_rand().await {
+        Ok(rand) => {
+            let mut rand = rand.0;
+            rand.extend(rand.clone());
+            let rand: [u8; 64] = rand.try_into().expect("Expected a Vec of length 64");
+            rand
+        }
+        Err(err) => {
+            ic_cdk::trap(format!("Error getting random seed: {:?}", err).as_str());
+        }
+    }
 }
 
 pub fn my_custom_random(_buf: &mut [u8]) -> Result<(), Error> {
