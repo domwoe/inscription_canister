@@ -22,7 +22,6 @@ use getrandom::{register_custom_getrandom, Error};
 mod memory;
 use memory::Memory;
 
-// type Memory = VirtualMemory<DefaultMemoryImpl>;
 const MAX_VALUE_SIZE: u32 = 100;
 
 #[derive(CandidType, Deserialize, Serialize, Debug)]
@@ -46,7 +45,7 @@ struct SignWithSchnorr {
 }
 
 enum SchnorrKeyIds {
-    #[allow(unused)]
+    DfxTestKey,
     TestKey1,
 }
 
@@ -54,6 +53,7 @@ impl SchnorrKeyIds {
     fn to_key_id(&self) -> SchnorrKeyId {
         SchnorrKeyId {
             name: match self {
+                Self::DfxTestKey => "dfx_test_key",
                 Self::TestKey1 => "test_key_1",
             }
             .to_string(),
@@ -61,7 +61,7 @@ impl SchnorrKeyIds {
     }
 
     fn variants() -> Vec<SchnorrKeyIds> {
-        vec![SchnorrKeyIds::TestKey1]
+        vec![SchnorrKeyIds::DfxTestKey, SchnorrKeyIds::TestKey1]
     }
 }
 

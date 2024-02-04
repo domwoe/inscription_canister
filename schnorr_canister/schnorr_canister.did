@@ -1,3 +1,15 @@
+type HttpRequest = record {
+  url : text;
+  method : text;
+  body : vec nat8;
+  headers : vec record { text; text };
+  certificate_version : opt nat16;
+};
+type HttpResponse = record {
+  body : vec nat8;
+  headers : vec record { text; text };
+  status_code : nat16;
+};
 type SchnorrKeyId = record { name : text };
 type SchnorrPublicKey = record {
   key_id : SchnorrKeyId;
@@ -14,8 +26,8 @@ type SignWithSchnorr = record {
   message : vec nat8;
 };
 type SignWithSchnorrReply = record { signature : vec nat8 };
-service : {
-  init_key : () -> ();
+service : () -> {
+  http_request : (HttpRequest) -> (HttpResponse) query;
   schnorr_public_key : (SchnorrPublicKey) -> (SchnorrPublicKeyReply);
   sign_with_schnorr : (SignWithSchnorr) -> (SignWithSchnorrReply);
 }
