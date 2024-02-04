@@ -7,10 +7,15 @@
       "package": "backend"
     },
     "schnorr_canister": {
-      "type": "rust",
-      "candid": "schnorr_canister/schnorr_canister.did",
-      "gzip": true,
-      "package": "schnorr_canister"
+      "type": "custom",
+      "candid": "https://github.com/domwoe/schnorr_canister/releases/latest/download/schnorr_canister.did",
+      "wasm": "https://github.com/domwoe/schnorr_canister/releases/latest/download/schnorr_canister.wasm.gz",
+      "remote": {
+        "id": {
+          "ic": "htvbm-vaaaa-aaaap-qb5kq-cai",
+          "playground": "htvbm-vaaaa-aaaap-qb5kq-cai"
+        }
+      }
     },
     "frontend": {
       "dependencies": ["backend"],
