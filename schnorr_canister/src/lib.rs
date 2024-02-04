@@ -196,10 +196,13 @@ fn sign_with_schnorr(arg: SignWithSchnorr) -> SignWithSchnorrReply {
             .clone()
     }));
 
+    // Increment the signature count
     STATE.with(|s| {
-        let _ = s.borrow_mut().sig_count.set(s.borrow().sig_count.get() + 1);
+        let mut state = s.borrow_mut();
+        let current_count = state.sig_count.get().clone();
+        let _ = state.sig_count.set(current_count + 1);
     });
-
+    
     let root_xprv = XPrv::new(&seed).unwrap();
     let private_key_bytes = root_xprv.private_key().to_bytes();
 
