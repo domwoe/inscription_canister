@@ -246,7 +246,7 @@ async fn build_inscription_transactions(
         &own_address,
         unsigned_commit_tx,
         key_name.clone(),
-        derivation_path,
+        derivation_path.clone(),
         ecdsa_api::sign_with_ecdsa,
     )
     .await;
@@ -295,7 +295,7 @@ async fn build_inscription_transactions(
 
     let msg = sighash.to_byte_array().to_vec();
 
-    let sig = schnorr_api::sign_with_schnorr(key_name.clone(), vec![], msg).await;
+    let sig = schnorr_api::sign_with_schnorr(key_name, derivation_path, msg).await;
 
     let witness = sighasher
       .witness_mut(commit_input_index)

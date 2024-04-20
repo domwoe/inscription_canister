@@ -19,12 +19,12 @@ services:
     build:
       context: .
       dockerfile: ./docker/Dockerfile
-    command:  ["--regtest", "--data-dir", "/index-data", "--rpc-url", "bitcoind:18443", "server", "--http-port", "8080"]
+    command:  ["--regtest", "--bitcoin-data-dir", "/index-data", "--bitcoin-rpc-url", "bitcoind:18443", "server", "--http-port", "8080"]
     volumes:
       - index_data:/index-data
     environment:
-      - ORD_BITCOIN_RPC_USER=icp
-      - ORD_BITCOIN_RPC_PASS=test
+      - ORD_BITCOIN_RPC_USERNAME=icp
+      - ORD_BITCOIN_RPC_PASSWORD=test
     ports:
       - "8080:8080"
     depends_on:

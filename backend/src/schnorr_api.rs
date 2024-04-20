@@ -3,10 +3,18 @@ use serde::Serialize;
 
 use crate::SCHNORR_CANISTER;
 
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SchnorrAlgorithm {
+    #[serde(rename = "bip340secp256k1")]
+    Bip340Secp256k1,
+    #[serde(rename = "ed25519")]
+    Ed25519,
+}
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone)]
 struct SchnorrKeyId {
     pub name: String,
+    pub algorithm: SchnorrAlgorithm,
 }
 
 #[derive(CandidType, Deserialize, Serialize, Debug)]
@@ -54,6 +62,7 @@ pub async fn schnorr_public_key(key_name: String, derivation_path: Vec<Vec<u8>>)
             derivation_path,
             key_id: SchnorrKeyId {
                 name: key_name,
+                algorithm: SchnorrAlgorithm::Bip340Secp256k1,
             },
         },),
     )
@@ -80,6 +89,7 @@ pub async fn sign_with_schnorr(
             derivation_path,
             key_id: SchnorrKeyId {
                 name: key_name,
+                algorithm: SchnorrAlgorithm::Bip340Secp256k1,
             },
         },),
     )

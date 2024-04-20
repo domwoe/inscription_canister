@@ -4,7 +4,7 @@ This example project explores the possibility of inscribing ordinal inscriptions
 
 Inscriptions are made by spending a Pay-to-Taproot (P2TR) output, which necessitates the use of Schnorr signatures. Currently, ICP's Chain-Key Signature suite does not support Schnorr signatures. As a workaround, this project uses an experimental Schnorr Canister for signing transactions. This canister generates a private key from a seed, which is derived from ICP's source of unbiased randomness. It's important to note that this method is not secured by the canister's controller. Consequently, there's a risk that node providers could access the canister's state and extract the private key.
 
-This project has only been tested on the local development environemnt on a Mac with Apple Silicon. It may not work on other platforms. Please file an issue if you encounter any problems.
+This project has only been tested on the local development environment on a Mac with Apple Silicon. It may not work on other platforms. Please file an issue if you encounter any problems.
 
 ## Quick Start
 
@@ -22,6 +22,13 @@ Next, make sure Docker is running, and then run the following commands to start 
 ```sh
 ./init.sh
 ```
+
+If you are on Apple silicon, you need to use platform emulation:
+
+```sh
+ DOCKER_DEFAULT_PLATFORM=linux/amd64 ./init.sh
+ ```
+
 Start the local `dfx` replica, with:
 
 ```sh
@@ -31,6 +38,7 @@ dfx start --background
 Then, start a proxy to be able to connect from the frontend to the local Bitcoin RPC server:
 
 ```sh
+npm install
 npm run proxy
 ```
 
@@ -40,7 +48,21 @@ and build and deploy the canisters:
 ./deploy.sh
 ```
 
-Finally, you can start a local development frontend with hot reload accessible at [http://localhost:3000](http://localhost:3000) by running:
+Finally, you should see the following:
+
+```
+Deployed canisters.
+URLs:
+  Frontend canister via browser
+    frontend: http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943/
+  Backend canister via Candid interface:
+    backend: http://bnz7o-iuaaa-aaaaa-qaaaa-cai.localhost:4943/?id=bd3sg-teaaa-aaaaa-qaaba-cai
+    schnorr_canister: http://bnz7o-iuaaa-aaaaa-qaaaa-cai.localhost:4943/?id=6fwhw-fyaaa-aaaap-qb7ua-cai
+```
+
+You can open the frontend in your browser by visiting the URL provided.
+
+Optionally, you can start a local development frontend with hot reload accessible at [http://localhost:3000](http://localhost:3000) by running:
 
 ```sh
 npm run frontend

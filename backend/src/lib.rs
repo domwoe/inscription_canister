@@ -36,8 +36,8 @@ pub fn init(network: BitcoinNetwork, schnorr_canister: String) {
         key_name.replace(String::from(match network {
             // For local development, we use a special test key with dfx.
             BitcoinNetwork::Regtest => "dfx_test_key",
-            // On the IC we're using a test ECDSA key.
-            BitcoinNetwork::Mainnet | BitcoinNetwork::Testnet => "test_key_1",
+            // On the IC we're using the real tCECDSA key.
+            BitcoinNetwork::Mainnet | BitcoinNetwork::Testnet => "key_1",
         }))
     });
 
