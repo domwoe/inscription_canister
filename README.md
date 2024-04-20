@@ -29,10 +29,10 @@ If you are on Apple silicon, you need to use platform emulation:
  DOCKER_DEFAULT_PLATFORM=linux/amd64 ./init.sh
  ```
 
-Start the local `dfx` replica, with:
+Start the local `dfx` replica in a new terminal with:
 
 ```sh
-dfx start --background
+dfx start --clean
 ```
 
 Then, start a proxy to be able to connect from the frontend to the local Bitcoin RPC server:
@@ -62,6 +62,8 @@ URLs:
 
 You can open the frontend in your browser by visiting the URL provided.
 
+The ord server is running at [http://localhost:8080](http://localhost:8080).
+
 Optionally, you can start a local development frontend with hot reload accessible at [http://localhost:3000](http://localhost:3000) by running:
 
 ```sh
@@ -82,7 +84,7 @@ If you want to remove the data from the `bitcoind` and `ord` containers, you can
 
 ![Architecture](/docs/inscriptions_architecture.svg)
 
-### Frontend
+### User Guide
 
 ![Frontend](/docs/frontend.png)
 
@@ -93,6 +95,23 @@ Ordinal inscriptions are created by spending a Pay-to-Taproot (P2TR) output. The
 
 ![Transactions](/docs/transactions.svg)
 
+## Troubleshooting
+
+If you inscribe an ordinal but it doesn't appear on the ord server, you should check if there are issues with the Bitcoin transaction.
+
+Use the log in the `dfx` terminal to find the raw transaction data of the reveal transaction:
+
+
+and then use the `testmempoolaccept` command to check if there's an issue with the transaction:
+
+```
+Signed reveal transaction: 0200000000010123b1137d57b67468459cbae415fc38a6974d1935dfdd27a88659e16404e58c5a0000000000fdffffff015cd5f505000000001976a9141a5394ad123ff2043e5e8694e85ca30f78e46fe488ac0340e1a04ddf26dfd806a846ff1db503b7f6cd1c440d65a0b9cdd4764e427d2d1bdf1414634094985ccaf10ea42f0e3898a106d128d6a1664a92aa4ae430e53fbde8510063036f7264010118746578742f706c61696e3b636861727365743d7574662d38000b48656c6c6f20576f726c646820ce0e80cd855ebd3858556334bbee1a6ff9d0e5cb8236f30599d675f02ed45886ac21c1ce0e80cd855ebd3858556334bbee1a6ff9d0e5cb8236f30599d675f02ed4588600000000
+```
+
+
+```sh
+docker compose exec bitcoind bitcoin-cli testmempoolaccept '["0200000000010123b1137d57b67468459cbae415fc38a6974d1935dfdd27a88659e16404e58c5a0000000000fdffffff015cd5f505000000001976a9141a5394ad123ff2043e5e8694e85ca30f78e46fe488ac0340e1a04ddf26dfd806a846ff1db503b7f6cd1c440d65a0b9cdd4764e427d2d1bdf1414634094985ccaf10ea42f0e3898a106d128d6a1664a92aa4ae430e53fbde8510063036f7264010118746578742f706c61696e3b636861727365743d7574662d38000b48656c6c6f20576f726c646820ce0e80cd855ebd3858556334bbee1a6ff9d0e5cb8236f30599d675f02ed45886ac21c1ce0e80cd855ebd3858556334bbee1a6ff9d0e5cb8236f30599d675f02ed4588600000000"]'
+```
 
 ## Credits
 

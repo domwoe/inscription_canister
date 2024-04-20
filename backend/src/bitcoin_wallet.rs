@@ -4,14 +4,14 @@ use bitcoin::{
     blockdata::{opcodes, script::Builder, witness::Witness},
     consensus::serialize,
     hashes::Hash,
-    key::{Secp256k1, PublicKey},
+    key::{PublicKey, Secp256k1},
     script::PushBytesBuf,
     secp256k1::{schnorr, XOnlyPublicKey},
     sighash::{self, SighashCache, TapSighashType},
     taproot::{ControlBlock, LeafVersion, Signature, TaprootBuilder},
     transaction::Version,
-    Address, AddressType, Amount, EcdsaSighashType, FeeRate, Network, OutPoint, Script, Sequence, TapLeafHash,
-    Transaction, TxIn, TxOut, Txid,
+    Address, AddressType, Amount, EcdsaSighashType, FeeRate, Network, OutPoint, Script, Sequence,
+    TapLeafHash, Transaction, TxIn, TxOut, Txid,
 };
 
 use hex::ToHex;
@@ -57,9 +57,7 @@ pub async fn inscribe(
     let bitcoin_network = transform_network(network);
     let inscription = Inscription::new(content_type, body);
 
-    let key_name = KEY_NAME.with(|kn| {
-        kn.borrow().to_string()
-    });
+    let key_name = KEY_NAME.with(|kn| kn.borrow().to_string());
 
     let derivation_path = vec![];
 
@@ -80,10 +78,10 @@ pub async fn inscribe(
     let own_address = Address::from_str(&own_address).unwrap().assume_checked();
 
     let dst_address = if let Some(dst_address) = dst_address {
-       Address::from_str(&dst_address).unwrap().assume_checked()
+        Address::from_str(&dst_address).unwrap().assume_checked()
     } else {
         // Send inscription to canister's own address if none is provided
-        own_address.clone()  
+        own_address.clone()
     };
 
     print("Fetching Schnorr public key...");
@@ -103,12 +101,11 @@ pub async fn inscribe(
         &own_address,
         key_name,
         derivation_path,
-        fee_rate
+        fee_rate,
     )
     .await
     .expect("Should build inscription transactions");
 
-   
     let commit_tx_bytes = serialize(&commit_tx);
     print(&format!(
         "Signed commit transaction: {}",
@@ -130,9 +127,7 @@ pub async fn inscribe(
     print("Done");
 
     (commit_tx.txid().encode_hex(), reveal_tx.txid().encode_hex())
-
 }
-
 
 async fn build_inscription_transactions(
     network: Network,
@@ -146,13 +141,14 @@ async fn build_inscription_transactions(
     derivation_path: Vec<Vec<u8>>,
     fee_rate: FeeRate,
 ) -> Result<(Transaction, Transaction), String> {
-    
-    
     let mut builder = Builder::new();
 
     builder = inscription.append_reveal_script_to_builder(builder);
 
-    ic_cdk::print(&format!("Reveal script: {}", &builder.clone().into_script()));
+    ic_cdk::print(&format!(
+        "Reveal script: {}",
+        &builder.clone().into_script()
+    ));
 
     let secp256k1 = Secp256k1::new();
 
@@ -173,7 +169,6 @@ async fn build_inscription_transactions(
     let control_block = taproot_spend_info
         .control_block(&(reveal_script.clone(), LeafVersion::TapScript))
         .expect("should compute control block");
-
 
     let commit_tx_address = Address::p2tr_tweaked(taproot_spend_info.output_key(), network);
 
@@ -236,10 +231,10 @@ async fn build_inscription_transactions(
     let sig_vbytes = 73;
 
     let commit_fee = fee_rate
-      .fee_vb(unsigned_commit_tx.vsize() as u64 + sig_vbytes).unwrap();
+        .fee_vb(unsigned_commit_tx.vsize() as u64 + sig_vbytes)
+        .unwrap();
 
     unsigned_commit_tx.output[0].value = total_spent - commit_fee;
-
 
     let commit_tx = sign_transaction_p2pkh(
         &own_public_key,
@@ -284,29 +279,33 @@ async fn build_inscription_transactions(
     };
 
     let mut sighasher = SighashCache::new(&mut reveal_tx);
-    let sighash = sighasher
-        .taproot_script_spend_signature_hash(
+    let mut signing_data = vec![];
+    let leaf_hash = TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript);
+    sighasher
+        .taproot_encode_signing_data_to::<&mut Vec<u8>, TxOut>(
+            &mut signing_data,
             commit_input_index,
             &sighash::Prevouts::All(commit_tx.output.as_slice()),
-            TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
+            None,
+            Some((leaf_hash.into(), 0xFFFFFFFF)),
             TapSighashType::Default,
         )
-        .expect("failed to construct sighash");
+        .expect("Failed to encode signing data");
 
-    let msg = sighash.to_byte_array().to_vec();
+    let sig = schnorr_api::sign_with_schnorr(key_name, derivation_path, signing_data).await;
 
-    let sig = schnorr_api::sign_with_schnorr(key_name, derivation_path, msg).await;
+    print(&format!("Reveal Tx Signature: {}", hex::encode(&sig)));
 
     let witness = sighasher
-      .witness_mut(commit_input_index)
-      .expect("getting mutable witness reference should work");
+        .witness_mut(commit_input_index)
+        .expect("getting mutable witness reference should work");
 
     witness.push(
-      Signature {
-        sig: schnorr::Signature::from_slice(sig.as_slice()).expect("should parse signature"),
-        hash_ty: TapSighashType::Default,
-      }
-      .to_vec(),
+        Signature {
+            sig: schnorr::Signature::from_slice(sig.as_slice()).expect("should parse signature"),
+            hash_ty: TapSighashType::Default,
+        }
+        .to_vec(),
     );
 
     witness.push(reveal_script);
@@ -363,7 +362,6 @@ fn build_reveal_transaction(
 
     (reveal_tx, fee)
 }
-
 
 // Sign a P2PKH bitcoin transaction.
 //
@@ -452,7 +450,6 @@ fn public_key_to_p2pkh_address(network: BitcoinNetwork, public_key: &[u8]) -> St
 
     bs58::encode(full_address).into_string()
 }
-
 
 // Converts a SEC1 ECDSA signature to the DER format.
 fn sec1_to_der(sec1_signature: Vec<u8>) -> Vec<u8> {
