@@ -115,9 +115,13 @@ function App() {
       setLoading(true);
       console.log(address);
       if (address) {
-        const balance = await backend.get_balance(address);
-        console.log(balance);
-        setBalance(+balance.toString()); // Convert BigInt to number
+        const bigBalance = await backend.get_balance(address);
+        let balance = 0;
+        if (bigBalance) {
+          balance = Number(bigBalance);
+        }
+
+        setBalance(Number(balance)); // Convert BigInt to number
       }
     } catch (err) {
       console.error(err);
@@ -184,7 +188,7 @@ function App() {
           <Input
             type="text"
             label="Balance"
-            placeholder={balance+""}
+            placeholder={balance + ''}
             isReadOnly={true}
           />
         </div>
@@ -205,7 +209,7 @@ function App() {
           <Input
             type="text"
             label="Current Block Height"
-            placeholder={currentBlockHeight+""}
+            placeholder={currentBlockHeight + ''}
             isReadOnly={true}
           />
 
@@ -222,6 +226,7 @@ function App() {
             items={inscriptionTypes}
             onChange={handleContentTypeChange}
             label="Content Type"
+            defaultSelectedKeys={[inscriptionTypes[contentType].value]}
           >
             {(inscriptionType) => (
               <SelectItem key={inscriptionType.value}>

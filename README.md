@@ -4,7 +4,7 @@ This example project explores the possibility of inscribing ordinal inscriptions
 
 Inscriptions are made by spending a Pay-to-Taproot (P2TR) output, which necessitates the use of Schnorr signatures. Currently, ICP's Chain-Key Signature suite does not support Schnorr signatures. As a workaround, this project uses an experimental Schnorr Canister for signing transactions. This canister generates a private key from a seed, which is derived from ICP's source of unbiased randomness. It's important to note that this method is not secured by the canister's controller. Consequently, there's a risk that node providers could access the canister's state and extract the private key.
 
-This project has only been tested on the local development environemnt on a Mac with Apple Silicon. It may not work on other platforms. Please file an issue if you encounter any problems.
+This project has only been tested on the local development environment on a Mac with Apple Silicon. It may not work on other platforms. Please file an issue if you encounter any problems.
 
 ## Quick Start
 
@@ -22,15 +22,23 @@ Next, make sure Docker is running, and then run the following commands to start 
 ```sh
 ./init.sh
 ```
-Start the local `dfx` replica, with:
+
+If you are on Apple silicon, you need to use platform emulation:
 
 ```sh
-dfx start --background
+ DOCKER_DEFAULT_PLATFORM=linux/amd64 ./init.sh
+ ```
+
+Start the local `dfx` replica in a new terminal with:
+
+```sh
+dfx start --clean
 ```
 
 Then, start a proxy to be able to connect from the frontend to the local Bitcoin RPC server:
 
 ```sh
+npm install
 npm run proxy
 ```
 
@@ -40,7 +48,23 @@ and build and deploy the canisters:
 ./deploy.sh
 ```
 
-Finally, you can start a local development frontend with hot reload accessible at [http://localhost:3000](http://localhost:3000) by running:
+Finally, you should see the following:
+
+```
+Deployed canisters.
+URLs:
+  Frontend canister via browser
+    frontend: http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943/
+  Backend canister via Candid interface:
+    backend: http://bnz7o-iuaaa-aaaaa-qaaaa-cai.localhost:4943/?id=bd3sg-teaaa-aaaaa-qaaba-cai
+    schnorr_canister: http://bnz7o-iuaaa-aaaaa-qaaaa-cai.localhost:4943/?id=6fwhw-fyaaa-aaaap-qb7ua-cai
+```
+
+You can open the frontend in your browser by visiting the URL provided.
+
+The ord server is running at [http://localhost:8080](http://localhost:8080).
+
+Optionally, you can start a local development frontend with hot reload accessible at [http://localhost:3000](http://localhost:3000) by running:
 
 ```sh
 npm run frontend
@@ -60,7 +84,7 @@ If you want to remove the data from the `bitcoind` and `ord` containers, you can
 
 ![Architecture](/docs/inscriptions_architecture.svg)
 
-### Frontend
+### User Guide
 
 ![Frontend](/docs/frontend.png)
 
@@ -71,6 +95,23 @@ Ordinal inscriptions are created by spending a Pay-to-Taproot (P2TR) output. The
 
 ![Transactions](/docs/transactions.svg)
 
+## Troubleshooting
+
+If you inscribe an ordinal but it doesn't appear on the ord server, you should check if there are issues with the Bitcoin transaction.
+
+Use the log in the `dfx` terminal to find the raw transaction data of the reveal transaction:
+
+
+and then use the `testmempoolaccept` command to check if there's an issue with the transaction:
+
+```
+Signed reveal transaction: 0200000000010123b1137d57b67468459cbae415fc38a6974d1935dfdd27a88659e16404e58c5a0000000000fdffffff015cd5f505000000001976a9141a5394ad123ff2043e5e8694e85ca30f78e46fe488ac0340e1a04ddf26dfd806a846ff1db503b7f6cd1c440d65a0b9cdd4764e427d2d1bdf1414634094985ccaf10ea42f0e3898a106d128d6a1664a92aa4ae430e53fbde8510063036f7264010118746578742f706c61696e3b636861727365743d7574662d38000b48656c6c6f20576f726c646820ce0e80cd855ebd3858556334bbee1a6ff9d0e5cb8236f30599d675f02ed45886ac21c1ce0e80cd855ebd3858556334bbee1a6ff9d0e5cb8236f30599d675f02ed4588600000000
+```
+
+
+```sh
+docker compose exec bitcoind bitcoin-cli testmempoolaccept '["0200000000010123b1137d57b67468459cbae415fc38a6974d1935dfdd27a88659e16404e58c5a0000000000fdffffff015cd5f505000000001976a9141a5394ad123ff2043e5e8694e85ca30f78e46fe488ac0340e1a04ddf26dfd806a846ff1db503b7f6cd1c440d65a0b9cdd4764e427d2d1bdf1414634094985ccaf10ea42f0e3898a106d128d6a1664a92aa4ae430e53fbde8510063036f7264010118746578742f706c61696e3b636861727365743d7574662d38000b48656c6c6f20576f726c646820ce0e80cd855ebd3858556334bbee1a6ff9d0e5cb8236f30599d675f02ed45886ac21c1ce0e80cd855ebd3858556334bbee1a6ff9d0e5cb8236f30599d675f02ed4588600000000"]'
+```
 
 ## Credits
 
