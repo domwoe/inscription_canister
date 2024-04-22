@@ -1,6 +1,17 @@
 use crate::{bitcoin_api, ecdsa_api, inscription::Inscription, schnorr_api, KEY_NAME};
 use bitcoin::{
-    absolute::LockTime, blockdata::{opcodes, script::Builder, witness::Witness}, consensus::serialize, hashes::{sha256, Hash}, key::{PublicKey, Secp256k1}, script::PushBytesBuf, secp256k1::{schnorr, Message, XOnlyPublicKey}, sighash::{self, SighashCache, TapSighashType}, taproot::{ControlBlock, LeafVersion, Signature, TaprootBuilder}, transaction::Version, Address, AddressType, Amount, EcdsaSighashType, FeeRate, Network, OutPoint, Script, Sequence, TapLeafHash, TapSighashTag, Transaction, TxIn, TxOut, Txid
+    absolute::LockTime,
+    blockdata::{opcodes, script::Builder, witness::Witness},
+    consensus::serialize,
+    hashes::{sha256, Hash},
+    key::{PublicKey, Secp256k1},
+    script::PushBytesBuf,
+    secp256k1::{schnorr, Message, XOnlyPublicKey},
+    sighash::{self, SighashCache, TapSighashType},
+    taproot::{ControlBlock, LeafVersion, Signature, TaprootBuilder},
+    transaction::Version,
+    Address, AddressType, Amount, EcdsaSighashType, FeeRate, Network, OutPoint, Script, Sequence,
+    TapLeafHash, TapSighashTag, Transaction, TxIn, TxOut, Txid,
 };
 
 use hex::ToHex;
@@ -284,18 +295,18 @@ async fn build_inscription_transactions(
         )
         .expect("Failed to encode signing data");
 
-        let tag = b"TapSighash";
-        let mut prefix = sha256::Hash::hash(tag).to_byte_array().to_vec();
-        let mut new_prefix = prefix.clone();
+    let tag = b"TapSighash";
+    let mut hashed_tag = sha256::Hash::hash(tag).to_byte_array().to_vec();
+    let mut prefix = hashed_tag.clone();
 
-        new_prefix.append(&mut prefix);
+    prefix.append(&mut hashed_tag);
 
-        new_prefix = sha256::Hash::hash(&new_prefix).to_byte_array().to_vec();
+    let signing_data: Vec<_> = prefix.iter().chain(signing_data.iter()).cloned().collect();
 
-    let signing_data: Vec<_> = new_prefix.iter().chain(signing_data.iter()).cloned().collect();
-
-
-    print(format!("Signing data: {}", signing_data.encode_hex::<String>()));
+    print(format!(
+        "Signing data: {}",
+        signing_data.encode_hex::<String>()
+    ));
 
     let sig = schnorr_api::sign_with_schnorr(key_name, derivation_path, signing_data.clone()).await;
 
