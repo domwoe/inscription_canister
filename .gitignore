@@ -32,3 +32,6 @@ dist-ssr
 
 # Rust
 target/
+
+# Env
+.env

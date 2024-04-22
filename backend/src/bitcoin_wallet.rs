@@ -1,22 +1,14 @@
 use crate::{bitcoin_api, ecdsa_api, inscription::Inscription, schnorr_api, KEY_NAME};
 use bitcoin::{
-    absolute::LockTime,
-    blockdata::{opcodes, script::Builder, witness::Witness},
-    consensus::serialize,
-    hashes::Hash,
-    key::{PublicKey, Secp256k1},
-    script::PushBytesBuf,
-    secp256k1::{schnorr, XOnlyPublicKey},
-    sighash::{self, SighashCache, TapSighashType},
-    taproot::{ControlBlock, LeafVersion, Signature, TaprootBuilder},
-    transaction::Version,
-    Address, AddressType, Amount, EcdsaSighashType, FeeRate, Network, OutPoint, Script, Sequence,
-    TapLeafHash, Transaction, TxIn, TxOut, Txid,
+    absolute::LockTime, blockdata::{opcodes, script::Builder, witness::Witness}, consensus::serialize, hashes::{sha256, Hash}, key::{PublicKey, Secp256k1}, script::PushBytesBuf, secp256k1::{schnorr, Message, XOnlyPublicKey}, sighash::{self, SighashCache, TapSighashType}, taproot::{ControlBlock, LeafVersion, Signature, TaprootBuilder}, transaction::Version, Address, AddressType, Amount, EcdsaSighashType, FeeRate, Network, OutPoint, Script, Sequence, TapLeafHash, TapSighashTag, Transaction, TxIn, TxOut, Txid
 };
 
 use hex::ToHex;
+
 use ic_cdk::api::management_canister::bitcoin::{BitcoinNetwork, Utxo};
 use ic_cdk::print;
+
+use ic_stable_structures::Storable;
 use sha2::Digest;
 use std::str::FromStr;
 
@@ -145,7 +137,7 @@ async fn build_inscription_transactions(
 
     builder = inscription.append_reveal_script_to_builder(builder);
 
-    ic_cdk::print(&format!(
+    print(&format!(
         "Reveal script: {}",
         &builder.clone().into_script()
     ));
@@ -158,7 +150,7 @@ async fn build_inscription_transactions(
 
     let reveal_script = builder.into_script();
 
-    ic_cdk::print(&format!("Reveal script: {}", &reveal_script));
+    print(&format!("Reveal script: {}", &reveal_script));
 
     let taproot_spend_info = TaprootBuilder::new()
         .add_leaf(0, reveal_script.clone())
@@ -282,7 +274,7 @@ async fn build_inscription_transactions(
     let mut signing_data = vec![];
     let leaf_hash = TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript);
     sighasher
-        .taproot_encode_signing_data_to::<&mut Vec<u8>, TxOut>(
+        .taproot_encode_signing_data_to(
             &mut signing_data,
             commit_input_index,
             &sighash::Prevouts::All(commit_tx.output.as_slice()),
@@ -292,9 +284,32 @@ async fn build_inscription_transactions(
         )
         .expect("Failed to encode signing data");
 
-    let sig = schnorr_api::sign_with_schnorr(key_name, derivation_path, signing_data).await;
+        let tag = b"TapSighash";
+        let mut prefix = sha256::Hash::hash(tag).to_byte_array().to_vec();
+        let mut new_prefix = prefix.clone();
 
-    print(&format!("Reveal Tx Signature: {}", hex::encode(&sig)));
+        new_prefix.append(&mut prefix);
+
+        new_prefix = sha256::Hash::hash(&new_prefix).to_byte_array().to_vec();
+
+    let signing_data: Vec<_> = new_prefix.iter().chain(signing_data.iter()).cloned().collect();
+
+
+    print(format!("Signing data: {}", signing_data.encode_hex::<String>()));
+
+    let sig = schnorr_api::sign_with_schnorr(key_name, derivation_path, signing_data.clone()).await;
+
+    // Verify the signature to be sure that signing works
+    let secp = bitcoin::secp256k1::Secp256k1::verification_only();
+
+    let sig_ = schnorr::Signature::from_slice(&sig).unwrap();
+
+    let digest = sha256::Hash::hash(&signing_data).to_byte_array();
+    let msg = Message::from_digest_slice(&digest).unwrap();
+
+    assert!(secp
+        .verify_schnorr(&sig_, &msg, &schnorr_public_key)
+        .is_ok());
 
     let witness = sighasher
         .witness_mut(commit_input_index)
