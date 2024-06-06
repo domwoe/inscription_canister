@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import {stringToBase64} from 'uint8array-extras';
+
 import './App.css';
 import { Button, Input, Select, SelectItem } from '@nextui-org/react';
 import { backend } from './declarations/backend';
@@ -21,10 +23,12 @@ function App() {
   const rpcUser = 'icp'; // Your RPC username
   const rpcPassword = 'test'; // Your RPC password
 
+
+
   const btcRpcHeaders = {
     'Content-Type': 'application/json',
     Authorization:
-      'Basic ' + Buffer.from(rpcUser + ':' + rpcPassword).toString('base64'),
+      'Basic ' + stringToBase64(rpcUser + ':' + rpcPassword),
   };
 
   const inscriptionTypes = [

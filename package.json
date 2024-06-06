@@ -22,7 +22,8 @@
     "local-cors-proxy": "^1.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "rpc-bitcoin": "^2.0.0"
+    "rpc-bitcoin": "^2.0.0",
+    "uint8array-extras": "^1.1.0"
   },
   "devDependencies": {
     "@dfinity/agent": "^0.21.4",

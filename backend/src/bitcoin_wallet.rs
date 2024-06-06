@@ -3,15 +3,15 @@ use bitcoin::{
     absolute::LockTime,
     blockdata::{opcodes, script::Builder, witness::Witness},
     consensus::serialize,
-    hashes::{sha256, Hash},
+    hashes::Hash,
     key::{PublicKey, Secp256k1},
     script::PushBytesBuf,
-    secp256k1::{schnorr, Message, XOnlyPublicKey},
+    secp256k1::{schnorr, XOnlyPublicKey},
     sighash::{self, SighashCache, TapSighashType},
     taproot::{ControlBlock, LeafVersion, Signature, TaprootBuilder},
     transaction::Version,
     Address, AddressType, Amount, EcdsaSighashType, FeeRate, Network, OutPoint, Script, Sequence,
-    TapLeafHash, TapSighashTag, Transaction, TxIn, TxOut, Txid,
+    TapLeafHash, Transaction, TxIn, TxOut, Txid,
 };
 
 use hex::ToHex;
@@ -19,7 +19,6 @@ use hex::ToHex;
 use ic_cdk::api::management_canister::bitcoin::{BitcoinNetwork, Utxo};
 use ic_cdk::print;
 
-use ic_stable_structures::Storable;
 use sha2::Digest;
 use std::str::FromStr;
 
@@ -50,6 +49,8 @@ fn transform_network(network: BitcoinNetwork) -> Network {
     }
 }
 
+
+// Creates an ordinal inscription
 pub async fn inscribe(
     network: BitcoinNetwork,
     content_type: Option<Vec<u8>>,
@@ -240,8 +241,8 @@ async fn build_inscription_transactions(
     unsigned_commit_tx.output[0].value = total_spent - commit_fee;
 
     let commit_tx = sign_transaction_p2pkh(
-        &own_public_key,
-        &own_address,
+        own_public_key,
+        own_address,
         unsigned_commit_tx,
         key_name.clone(),
         derivation_path.clone(),
@@ -282,45 +283,16 @@ async fn build_inscription_transactions(
     };
 
     let mut sighasher = SighashCache::new(&mut reveal_tx);
-    let mut signing_data = vec![];
-    let leaf_hash = TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript);
-    sighasher
-        .taproot_encode_signing_data_to(
-            &mut signing_data,
+    let sighash = sighasher
+        .taproot_script_spend_signature_hash(
             commit_input_index,
             &sighash::Prevouts::All(commit_tx.output.as_slice()),
-            None,
-            Some((leaf_hash.into(), 0xFFFFFFFF)),
+            TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
             TapSighashType::Default,
         )
-        .expect("Failed to encode signing data");
+        .expect("failed to construct sighash");
 
-    let tag = b"TapSighash";
-    let mut hashed_tag = sha256::Hash::hash(tag).to_byte_array().to_vec();
-    let mut prefix = hashed_tag.clone();
-
-    prefix.append(&mut hashed_tag);
-
-    let signing_data: Vec<_> = prefix.iter().chain(signing_data.iter()).cloned().collect();
-
-    print(format!(
-        "Signing data: {}",
-        signing_data.encode_hex::<String>()
-    ));
-
-    let sig = schnorr_api::sign_with_schnorr(key_name, derivation_path, signing_data.clone()).await;
-
-    // Verify the signature to be sure that signing works
-    let secp = bitcoin::secp256k1::Secp256k1::verification_only();
-
-    let sig_ = schnorr::Signature::from_slice(&sig).unwrap();
-
-    let digest = sha256::Hash::hash(&signing_data).to_byte_array();
-    let msg = Message::from_digest_slice(&digest).unwrap();
-
-    assert!(secp
-        .verify_schnorr(&sig_, &msg, &schnorr_public_key)
-        .is_ok());
+    let sig = schnorr_api::sign_with_schnorr(key_name, derivation_path, sighash.to_byte_array().to_vec()).await;
 
     let witness = sighasher
         .witness_mut(commit_input_index)
