@@ -2,13 +2,15 @@
 
 This example project explores the possibility of inscribing ordinal inscriptions onto the Bitcoin blockchain using the Internet Computer Protocol (ICP).
 
-Inscriptions are made by spending a Pay-to-Taproot (P2TR) output, which necessitates the use of Schnorr signatures. Currently, ICP's Chain-Key Signature suite does not support Schnorr signatures. As a workaround, this project uses an experimental Schnorr Canister for signing transactions. This canister generates a private key from a seed, which is derived from ICP's source of unbiased randomness. It's important to note that this method is not secured by the canister's controller. Consequently, there's a risk that node providers could access the canister's state and extract the private key.
+Inscriptions are made by spending a Pay-to-Taproot (P2TR) output, which necessitates the use of Schnorr signatures. Threshold Schnorr signatures have been available on ICP mainnet since the [Deuterium Milestone](https://x.com/dfinity/status/1823341406254985448). You can read more about threshold Schnorr signatures in the [Internet Computer documentation](https://internetcomputer.org/docs/current/developer-docs/smart-contracts/signatures/signing-messages-t-schnorr).
 
 This project has only been tested on the local development environment on a Mac with Apple Silicon. It may not work on other platforms. Please file an issue if you encounter any problems.
 
 ## Quick Start
 
-Make sure that [Node.js](https://nodejs.org/en/) `>= 16.x`, [`dfx`](https://internetcomputer.org/docs/current/developer-docs/build/install-upgrade-remove) `>= 0.12.x`, [Rust](https://www.rust-lang.org/tools/install), and [Docker](https://docs.docker.com/get-docker/) (including docker compose) are installed on your system.
+Make sure that [Node.js](https://nodejs.org/en/) `>= 16.x`, [`dfx`](https://internetcomputer.org/docs/current/developer-docs/build/install-upgrade-remove) `>= 0.22.x`, [Rust](https://www.rust-lang.org/tools/install), and [Docker](https://docs.docker.com/get-docker/) (including docker compose) are installed on your system.
+
+> :warning: Only dfx `>= 0.22.x` supports threshold Schnorr signatures. Make sure you have the correct version installed.
 
 After installing Rust, run these commands to configure your system for IC canister development:
 
@@ -62,7 +64,7 @@ URLs:
 
 You can open the frontend in your browser by visiting the URL provided.
 
-The ord server is running at [http://localhost:8080](http://localhost:8080).
+The ord server is running at [http://localhost:8080](http://localhost:8080). You can see your inscriptions at http://localhost:8080/inscriptions.
 
 Optionally, you can start a local development frontend with hot reload accessible at [http://localhost:3000](http://localhost:3000) by running:
 

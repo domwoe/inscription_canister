@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {stringToBase64} from 'uint8array-extras';
-
 import './App.css';
 import { Button, Input, Select, SelectItem } from '@nextui-org/react';
 import { backend } from './declarations/backend';

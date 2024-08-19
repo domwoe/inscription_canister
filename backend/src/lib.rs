@@ -8,8 +8,6 @@ mod types;
 use ic_cdk::api::management_canister::bitcoin::BitcoinNetwork;
 
 use std::cell::{Cell, RefCell};
-use std::env;
-
 
 thread_local! {
     // The bitcoin network to connect to.
@@ -21,33 +19,23 @@ thread_local! {
     // The derivation path to use for ECDSA secp256k1.
     static DERIVATION_PATH: Vec<Vec<u8>> = vec![];
 
-    // The ECDSA key name.
+    // The ECDSA and Schnor key name.
     static KEY_NAME: RefCell<String> = RefCell::new(String::from(""));
 
-    pub static SCHNORR_CANISTER: RefCell<String> = RefCell::new(String::from(""));
 }
 
-
 #[ic_cdk::init]
-pub fn init(network: BitcoinNetwork, schnorr_canister: String) {
+pub fn init(network: BitcoinNetwork) {
     NETWORK.with(|n| n.set(network));
 
     KEY_NAME.with(|key_name| {
         key_name.replace(String::from(match network {
             // For local development, we use a special test key with dfx.
             BitcoinNetwork::Regtest => "dfx_test_key",
-            // On the IC we're using the real tCECDSA key.
+            // On the IC we're using the real threshold key.
             BitcoinNetwork::Mainnet | BitcoinNetwork::Testnet => "key_1",
         }))
     });
-
-    SCHNORR_CANISTER.with(|schnorr_canister_id| {
-
-        let canister_id = env::var("CANISTER_ID_SCHNORR_CANISTER").unwrap_or(schnorr_canister);
-        ic_cdk::println!("CANISTER_ID_SCHNORR_CANISTER: {}", &canister_id);
-        schnorr_canister_id.replace(canister_id);
-    });
-
 }
 
 /// Returns the balance of the given bitcoin address.
@@ -57,13 +45,24 @@ pub async fn get_balance(address: String) -> u64 {
     bitcoin_api::get_balance(network, address).await
 }
 
-
 #[ic_cdk::update]
-pub async fn inscribe(content_type: String, body: String, recipient: Option<String>, fee_rate: Option<u64>) -> (String, String) {
+pub async fn inscribe(
+    content_type: String,
+    body: String,
+    recipient: Option<String>,
+    fee_rate: Option<u64>,
+) -> (String, String) {
     let network = NETWORK.with(|n| n.get());
     let content_type = Some(content_type.as_bytes().to_vec());
     let body = Some(body.as_bytes().to_vec());
-    bitcoin_wallet::inscribe(network, content_type, body, recipient, fee_rate.unwrap_or(10)).await
+    bitcoin_wallet::inscribe(
+        network,
+        content_type,
+        body,
+        recipient,
+        fee_rate.unwrap_or(10),
+    )
+    .await
 }
 
 #[ic_cdk::update]

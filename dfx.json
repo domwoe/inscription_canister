@@ -6,18 +6,6 @@
       "gzip": true,
       "package": "backend"
     },
-    "schnorr_canister": {
-      "type": "custom",
-      "candid": "https://github.com/domwoe/schnorr_canister/releases/latest/download/schnorr_canister.did",
-      "wasm": "https://github.com/domwoe/schnorr_canister/releases/latest/download/schnorr_canister.wasm.gz",
-      "specified_id": "6fwhw-fyaaa-aaaap-qb7ua-cai",
-      "remote": {
-        "id": {
-          "ic": "6fwhw-fyaaa-aaaap-qb7ua-cai",
-          "playground": "6fwhw-fyaaa-aaaap-qb7ua-cai"
-        }
-      }
-    },
     "frontend": {
       "dependencies": ["backend"],
       "type": "assets",
